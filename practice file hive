@@ -1,0 +1,698 @@
+
+https://cwiki.apache.org/confluence/display/Hive/LanguageManual+DDL#LanguageManualDDL-listTableProperties //Imp link for  Storage Formats, DDL, File Formats  
+
+CHANGE
+-------
+ALTER TABLE test_orc CHANGE third_column third_column float;  //data type change string to float
+
+REORDER COLUMNS:-
+------------------
+ALTER TABLE test_orc CHANGE third_column third_column float AFTER first_column;
+
+The exception is: FAILED: Execution Error, return code 1 from org.apache.hadoop.hive.ql.exec.DDLTask. Reordering columns is not supported for table default.test_orc. SerDe may be incompatible.
+
+REPLACE COLUMNS
+----------------	
+The REPLACE COLUMNS command is work only in case we are creating table like this : create table xyz(id int, name string)
+
+But if we are creating table like this : create table alpha001(id int, name string) clustered by (id) into 2 buckets stored as orc TBLPROPERTIES ('transactional'='true') , then we cant use ALTER TABLE alpha001 REPLACE COLUMNS (id int). It throws FAILED: Execution Error, return code 1 from org.apache.hadoop.hive.ql.exec.DDLTask. Replace columns is not supported for table default.alpha001. SerDe may be incompatible.
+
+TRUNCATE TABLE table_name; //empty table
+
+TRUNCATE TABLE table_name [PARTITION partition_spec];
+e.g- TRUNCATE TABLE studentpart PARTITION (year=1,year=2);  //But isse only year=2 wala partition hi truncate hoga, RIGHT MOST
+
+
+
+
+create table if not exists student (name string,id int,year int) row format delimited fields terminated by '\t' lines terminated by '\n' stored as textfile;
+
+create table if not exists student1(name string,id int,year int) row format delimited fields terminated by '\t' lines terminated by '\n' stored as textfile; 
+
+create table if not exists student2(name string,id int,year int) row format delimited fields terminated by '\t' lines terminated by '\n' stored as textfile;
+
+create external table if not exists student3(name string,id int,year int) row format delimited fields terminated by '\t' lines terminated by '\n' stored as textfile;
+
+load data inpath '/home/anupam/work/hive_inputs/student.txt' into table student1;
+
+load data inpath '/home/anupam/work/hive_inputs/student.txt' into table student3;
+
+create external table if not exists student7(name string,id int,year int) row format delimited fields terminated by '\t' lines terminated by '\n' stored as textfile location '/extloc';
+
+
+shruti_k@hcl.com
+
+create table if not exists student11 (name string comment 'student name',id int comment 'student id',year int comment 'student year') row format delimited fields terminated by '\t' lines terminated by '\n' stored as textfile;
+
+
+create external table if not exists student33 (name string comment 'student name',id int comment 'student id',year int comment 'student year') row format delimited fields terminated by '\t' lines terminated by '\n' stored as textfile;
+
+Collection Data Type
+=====================
+
+create table if not exists studentcoll2 (name string comment 'student_name',
+marks map<string,int> comment 'student_marks',
+subjects array<string> comment 'student_subjects',
+address struct<loc:string comment 'student_location',pincode:int comment 'student_pincode',city:string> comment 'student_city')
+row format delimited fields terminated by '#'
+collection items terminated by ','
+map keys terminated by ':'
+lines terminated by '\n'
+stored as textfile;
+
+load data local inpath '${env:HOME}/hive_inputs/studentcollections.txt' into table studentcoll2;
+
+
+CTAS
+=========
+
+create table newtab15 row format delimited fields terminated by '\t' collection items terminated by ',' map keys terminated by ':' lines terminated by '\n' stored as textfile AS select name,marks from studentcoll;
+
+
+create table newtab16 row format delimited fields terminated by '\t' collection items terminated by ',' map keys terminated by ':' lines terminated by '\n' stored as textfile AS select name,marks,address from studentcoll;
+
+
+create table newtab17 row format delimited fields terminated by '\t' collection items terminated by ',' map keys terminated by ':' lines terminated by '\n' stored as textfile AS select name comment 'student_name',marks comment 'student_marks',address comment 'student_address' from studentcoll;
+
+
+
+
+
+
+
+PARTITIONING
+===============
+
+
+
+
+
+
+    DYNAMIC PARTITIONING
+    ====================
+
+create table if not exists studentpartdyn2(name string,id int) partitioned by (year int) row format delimited fields terminated by '\t' lines terminated by '\n' stored as textfile;
+
+load data local inpath '${env:HOME}/hive_inputs/student.txt' overwrite into table studentpartdyn partition (year); // we can't load data using 
+
+load data command. First we will have to create temparary table then load using insert overwrite command (table to table data load).
+
+insert overwrite table studentpartdyn2 partition(year) select * from studenttemp;
+
+
+create table orders(order_date STRING,region STRING,representative STRING,item STRING,units INT,unit_cost DOUBLE,total DOUBLE)
+ROW  FORMAT DELIMITED FIELDS TERMINATED BY ','
+LINES TERMINATED BY '\n';
+
+load data inpath '/mnrao/order.txt' overwrite into table orders;
+
+order_date
+region
+item
+--------------
+
+create table orders_partition2(representative STRING,units INT,unit_cost DOUBLE,total DOUBLE) partitioned by (item STRING,region STRING,order_date STRING)
+ROW  FORMAT DELIMITED FIELDS TERMINATED BY ','
+LINES TERMINATED BY '\n' stored as textfile;
+
+insert overwrite table orders_partition PARTITION(item,region,order_date) SELECT representative,units,unit_cost,total,item,region,order_date from orders;
+
+http://hadooptutorial.info/processing-logs-in-hive/                 //log file processing in hive
+
+
+
+
+
+
+ select c.customer_id,name,order_date,amount from customers c LEFT OUTER JOIN orders o ON (c.customer_id=o.customer_id);
+
+
+select /*+ mapjoin(customers) */ customers.* , orders.* from orders LEFT OUTER JOIN customers on
+customers.customer_id = orders.customer_id ;
+
+
+select /*+ mapjoin(orders) */ customers.* , orders.* from orders RIGHT OUTER JOIN customers on
+customers.customer_id = orders.customer_id ;
+
+
+
+MAPJOIN
+========
+http://docs.qubole.com/en/latest/user-guide/hive/hive-mapjoin-options.html
+
+http://www.hadoopadmin.co.in/hive/map-side-join-in-hive/
+
+https://grisha.org/blog/2013/04/19/mapjoin-a-simple-way-to-speed-up-your-hive-queries/
+
+Another (better, in my opinion) way to turn on mapjoins is to let Hive do it automatically. Simply set hive.auto.convert.join to true in your config, and Hive will automatically use mapjoins for any tables smaller than hive.mapjoin.smalltable.filesize (default is 25MB).
+
+
+https://stackoverflow.com/questions/39666932/loading-data-to-hive-static-partition-table-using-load-command/39684693
+
+
+
+Bucketing
+==========
+
+create table users(id int,name string) row format delimited fields terminated by '\t' stored as textfile;
+
+load data local inpath '${env:HOME}/hive_inputs/users.txt' overwrite into table users;
+
+create table bucketest_users(id int,name string) clustered by (id) into 4 buckets row format delimited fields terminated by '\t' stored as textfile;
+create table bucketest_sorted_users(id int,name string) clustered by (id) sorted by (id asc) into 4 buckets row format delimited fields terminated by '\t' stored as textfile;
+
+
+from users
+insert overwrite table bucketest_users select * ;
+insert overwrite table bucketest_sorted_users select * ;
+
+http://beekeeperdata.com/posts/hadoop/2015/08/17/hive-udaf-tutorial.html  //link for UDF in HIve
+
+https://www.linkedin.com/pulse/hive-functions-udfudaf-udtf-examples-gaurav-singh //Excellent link for udf
+
+
+
+Transaction Date 	Transaction ID 	  Service Name 	Payment Amount 	Status 	   Payment Provider 	Payment Mode
+
+12-Jul-2017 17:54:10 	exc_596614cbdeffb REELTIME 495 	584.10 	       Success 	      CITRUS 	
+
+
+
+create table student_udf (roll int,name string,class smallint,tot_marks double,math double,english double,physics double,social_study double,year int) row format delimited fields terminated by '\t' lines terminated by '\n' stored as textfile;
+
+
+create table book_details(book_id int,book_detail string,genres string) row format delimited fields terminated by '\t' lines
+terminated by '\n' stored as textfile;
+
+
+create table orders (order_id int, order_date DATE,customer_id int,orders_amount int) row format delimited fields terminated by ' ' lines terminated by '\n' stored as textfile;
+
+load data local inpath '${env:HOME}/hive_inputs/orderinfo.txt' into table orders;
+
+
+https://docs.snowflake.net/manuals/user-guide/semistructured-intro.html //For JSON,AVRO,ORC,Parquet,XML 
+
+
+Indexing
+=========
+
+hive (student)> create index idx1 ON TABLE student1(id) AS 'COMPACT' with deferred rebuild row format delimited fields terminated by '\t' STORED AS TEXTFILE;
+
+create index idx7 ON TABLE student7(id) AS 'COMPACT' with deferred rebuild row format delimited fields terminated by '\t' stored as textfile;
+
+
+create index empidx2 ON TABLE emp (fname,lname) AS 'COMPACT' WITH DEFERRED REBUILD IN TABLE emptab;
+
+ALTER INDEX empidx2 ON emp REBUILD;
+
+https://acadgild.com/blog/indexing-in-hive/   //for indexing compact vs bitmap indexing
+
+TEXTFILE/CSVFILE
+==================
+
+ROW FORMAT DELIMITED
+  FIELDS TERMINATED BY ','
+  LINES TERMINATED BY '\n'
+STORED AS INPUTFORMAT
+  'org.apache.hadoop.mapred.TextInputFormat'
+OUTPUTFORMAT
+  'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+---------------------------------------------------------------
+
+ROW FORMAT SERDE
+'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+STORED AS TEXTFILE;
+
+The following example creates a TSV (Tab-separated) file.
+ 
+CREATE TABLE my_table(a string, b string, ...)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES (
+   "separatorChar" = "\t",
+   "quoteChar"     = "'",
+   "escapeChar"    = "\\"
+)  
+STORED AS TEXTFILE;
+Default properties for SerDe is Comma-Separated (CSV) file
+ 
+DEFAULT_ESCAPE_CHARACTER \
+DEFAULT_QUOTE_CHARACTER  "
+DEFAULT_SEPARATOR        ,
+
+This SerDe works for most CSV data, but does not handle embedded newlines. To use the SerDe, specify the fully qualified class name org.apache.hadoop.hive.serde2.OpenCSVSerde.  
+
+Documentation is based on original documentation at https://github.com/ogrodnek/csv-serde.
+
+Limitations
+This SerDe treats all columns to be of type String. Even if you create a table with non-string column types using this SerDe, the DESCRIBE TABLE output would show string column type.
+The type information is retrieved from the SerDe.
+
+To convert columns to the desired type in a table, you can create a view over the table that does the CAST to the desired type.
+
+
+https://youtu.be/4bdKxq7G5s8  //How to load CSV file into HIVE with TBLPROPERTIES("skip.header.line")
+
+SEQUENCEFILE
+==============
+
+hive> SET hive.exec.compress.output = true;
+hive> SET mapred.output.compression.type = BLOCK;
+hive> SET mapred.output.compression.codec = org.apache.hadoop.io.compress.SnappyCodec;
+
+CREATE TABLE table1 (id int, name string, score float, type string)
+ROW FORMAT SERDE
+ 'org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe'
+STORED AS sequencefile;
+
+JSONFILE
+===============
+
+http://files.cloudera.com/samples/hive-serdes-1.0-SNAPSHOT.jar    //link to download json serdes .jar
+hive (default)>                                                                     
+create table my_table(...)
+ROW FORMAT SERDE
+  'org.apache.hcatalog.data.JsonSerDe'
+...
+;
+---------------
+hive> add jar /home/anupam/json-serde-1.3.7-SNAPSHOT-jar-with-dependencies.jar;
+
+https://www.youtube.com/watch?v=i4pHvftawtw //how to load json data into hive 
+
+Avro
+=====
+CREATE TABLE kst
+PARTITIONED BY (ds string)
+STORED AS AVRO
+TBLPROPERTIES (
+  'avro.schema.url'='http://schema_provider/kst.avsc');
+----------------------------------------------------------
+ROW FORMAT SERDE
+  'org.apache.hadoop.hive.serde2.avro.AvroSerDe'
+STORED AS INPUTFORMAT
+  'org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat'
+OUTPUTFORMAT
+  'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat'
+
+
+RCFILE
+=======
+
+ROW FORMAT SERDE
+  'org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe'
+STORED AS INPUTFORMAT
+  'org.apache.hadoop.hive.ql.io.RCFileInputFormat'
+OUTPUTFORMAT
+  'org.apache.hadoop.hive.ql.io.RCFileOutputFormat'
+
+
+ORC
+=====
+
+ROW FORMAT SERDE
+  'org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe'
+STORED AS INPUTFORMAT
+  'org.apache.hadoop.hive.ql.io.ORCFileInputFormat'
+OUTPUTFORMAT
+  'org.apache.hadoop.hive.ql.io.ORCFileOutputFormat'
+
+--------------------------------------------------------
+CREATE TABLE tab_orc (col1 STRING,
+                      col2 STRING,
+                      col3 STRING)
+STORED AS ORC
+TBLPROPERTIES (
+               "orc.compress"="SNAPPY",
+               "orc.bloom.filter.columns"="col1",
+               "orc.create.index" = "true" 
+              )
+--------------------------------------------------------
+
+CREATE EXTERNAL TABLE `STATIONS_ ORC1`(
+  `id` int,
+  `installdate` string,
+  `name` string,
+  `longitude` float,
+  `latitude` float)
+PARTITIONED BY (
+  `year` int,
+  `month` string)
+STORED AS ORC
+LOCATION
+  'maprfs:/mapr/demo.jbates.mapr/data/hive/orc1/bikestations'
+TBLPROPERTIES ( "orc.compress"="NONE" );
+
+
+
+
+
+How to create JSON TABLE
+========================
+
+create table product_json (id string,name string,reseller string,category string,price double,discount int,profit_percent int) ROW FORMAT SERDE 'com.cloudera.hive.serde.JSONSerDe';
+
+load data local inpath '/home/anupam/hive_inputs/JSON/product_info_merge.json' into table product_json;
+
+
+create table product_text (id string,name string,reseller string,category string,price double,discount int,profit_percent int) ROW FORMAT DELIMITED fields terminated by ',' stored as textfile;
+
+load data local inpath '/home/anupam/hive_inputs/JSON/product_info_merge.json' into table product_text;
+
+create table empjson (id int,name string,sal int,dept string) ROW FORMAT SERDE 'com.cloudera.hive.serde.JSONSerDe';
+
+INPUT JSON FILE:-
+{"emp":[{"id":100,"name":"John","sal":15000,"dept":"admin"},{"id":101,"name":"Harry","sal":27000,"dept":"physics"}]}
+
+create table arraystructempjson(emp array<struct<id:int,name:string,sal:int,dept:string>>) ROW FORMAT SERDE 'com.cloudera.hive.serde.JSONSerDe';
+
+create table arraymapempjson(emp array<map<string,int>>) ROW FORMAT SERDE 'com.cloudera.hive.serde.JSONSerDe';
+
+load data local inpath '/home/anupam/hive_inputs/JSON/emp.json' into table arraystructempjson ;
+
+load data local inpath '/home/anupam/hive_inputs/JSON/emp.json' into table arraymapempjson;
+
+select * from arraystructempjson;  // It will give successful output
+OK
+arraystructempjson.emp
+[{"id":100,"name":"John","sal":15000,"dept":"admin"},{"id":101,"name":"Harry","sal":27000,"dept":"physics"}]
+Time taken: 0.054 seconds, Fetched: 1 row(s)
+
+But If I fire 
+select * from arraymapempjson;   // It will give error - java.lang.ClassCastException...so I can't define map with array.
+OK
+arraymapempjson.emp
+Failed with exception java.io.IOException:org.apache.hadoop.hive.ql.metadata.HiveException: java.lang.ClassCastException: java.lang.String cannot be cast to java.lang.Integer
+
+select emp[0] from arraymapempjson; // System lock without informing....be careful bhale hi maine jar add ki ho ya na ki ho
+
+select emp[0] from arraystructempjson; // print object-1
+
+select * from arraystructempjson; // I haven't added jar file into hive class, this work successfully
+select emp[0] from arraystructempjson; // But this query do System lock...be careful  
+
+select emp[0].id from arraystructempjson; // 100
+
+select emp.id from arraystructempjson; // [100,101]
+ 
+select emp.name,emp.sal from arraystructempjson;  //    ["John","Harry"]	[15000,27000]
+
+select emp.name from arraystructempjson where emp.sal=27000;  //FAILED: SemanticException [Error 10016]: Line 1:46 Argument type mismatch 'sal': The 1st argument of EQUAL  is expected to a primitive type, but list is found
+
+
+
+Input File:- book.json
+
+{"value": [{"id": "1","bookname": "A","properties": {"subscription": "1year","unit": "3"}},{"id": "2","bookname":"B","properties":{"subscription": "2years","unit": "5"}}]}
+
+CREATE TABLE tmp1 (
+value ARRAY<struct<id:string,bookname:string,properties:struct<subscription:string,unit:string>>>   
+)
+ROW FORMAT SERDE 'com.cloudera.hive.serde.JSONSerDe'
+WITH SERDEPROPERTIES ( 
+'mapping.value' = 'value'   
+) 
+STORED AS TEXTFILE;
+
+load data local inpath '/home/anupam/hive_inputs/JSON/book.json' into table tmp1;
+
+select value[0] from tmp1; // print object-1
+select value[1] from tmp1; // print object-2
+select value[0].id from tmp1; // 1
+select value[0].id,value[0].bookname from tmp1; //1,A
+select value[0].properties from tmp1;  // {"subscription":"1year","unit":"3"}
+select value[1].properties from tmp1;  // {"subscription":"2years","unit":"5"}
+select value.id,value.bookname from tmp1;  // [1,2]          [A,B]
+select value.properties from tmp1;   //  [{"subscription":"1year","unit":"3"},{"subscription":"2years","unit":"5"}]
+select value.name from tmp1 where value.id=1; // FAILED: SemanticException [Error 10016]: Line 1:34 Argument type mismatch 'id': The 1st argument of EQUAL  is expected to a primitive type, but list is found
+
+describe tmp1;
+value               	array<struct<id:string,bookname:string,properties:struct<subscription:string,unit:string>>>	                    
+	
+select * from tmp1;
+
+[{"id":"1","bookname":"A","properties":{"subscription":"1year","unit":"3"}},{"id":"2","bookname":"B","properties":{"subscription":"2years","unit":"5"}}]
+
+
+SELECT * FROM tmp1 LATERAL VIEW explode(value) itemTable AS items;
+
+[{"id":"1","bookname":"A","properties":{"subscription":"1year","unit":"3"}},{"id":"2","bookname":"B","properties":{"subscription":"2years","unit":"5"}}]	{"id":"1","bookname":"A","properties":{"subscription":"1year","unit":"3"}}
+[{"id":"1","bookname":"A","properties":{"subscription":"1year","unit":"3"}},{"id":"2","bookname":"B","properties":{"subscription":"2years","unit":"5"}}]	{"id":"2","bookname":"B","properties":{"subscription":"2years","unit":"5"}}
+
+
+create table tmp2 as 
+SELECT *
+FROM tmp1
+LATERAL VIEW explode(value) itemTable AS items;
+
+describe tmp2;
+value               	array<struct<id:string,bookname:string,properties:struct<subscription:string,unit:string>>>	                    
+items               	struct<id:string,bookname:string,properties:struct<subscription:string,unit:string>>	
+
+select * from tmp2;
+
+[{"id":"1","bookname":"A","properties":{"subscription":"1year","unit":"3"}},{"id":"2","bookname":"B","properties":{"subscription":"2years","unit":"5"}}]	{"id":"1","bookname":"A","properties":{"subscription":"1year","unit":"3"}}
+[{"id":"1","bookname":"A","properties":{"subscription":"1year","unit":"3"}},{"id":"2","bookname":"B","properties":{"subscription":"2years","unit":"5"}}]	{"id":"2","bookname":"B","properties":{"subscription":"2years","unit":"5"}}
+
+
+select value[0].id as id, value[0].bookname as name, value[0].properties.subscription as subscription, value[0].properties.unit as unit from tmp2;
+1	A	1year	3
+1	A	1year	3
+
+select value[1].id as id, value[1].bookname as name, value[1].properties.subscription as subscription, value[1].properties.unit as unit from tmp2;
+2	B	2years	5
+2	B	2years	5
+
+select items[0].id as id, items[0].bookname as name, items[0].properties.subscription as subscription, items[0].properties.unit as unit from tmp2;  
+FAILED: SemanticException Line 0:-1 [] not valid on non-collection types '0': struct<id:string,bookname:string,properties:struct<subscription:string,unit:string>>
+
+select items[1].id as id, items[1].bookname as name, items[1].properties.subscription as subscription, items[1].properties.unit as unit from tmp2;
+FAILED: SemanticException Line 0:-1 [] not valid on non-collection types '1': struct<id:string,bookname:string,properties:struct<subscription:string,unit:string>>
+
+
+create table books as 
+select value[0].id as id, value[0].bookname as name, value[0].properties.subscription as subscription, value[0].properties.unit as unit from tmp2;
+
+
+hive(student)desc books;
+OK
+col_name	data_type	comment
+id                  	string              	                    
+name                	string              	                    
+subscription        	string              	                    
+unit                	string 
+
+
+create table tmp2 as 
+SELECT *
+FROM tmp1
+LATERAL VIEW explode(value) itemTable AS items;
+
+
+create table books as 
+select value[0].id as id, value[0].bookname as name, value[0].properties.subscription as subscription, value[0].properties.unit as unit from tmp2;
+
+load data local inpath '/home/anupam/hive_inputs/JSON/book.json' into table tmp1;
+
+
+
+CREATE TABLE nestedempjson (
+emp ARRAY<struct<id:string,name:string,address:struct<loc:string,pincode:longint,city:string>>>   
+)
+ROW FORMAT SERDE 'com.cloudera.hive.serde.JSONSerDe'
+WITH SERDEPROPERTIES ( 
+'mapping.emp' = 'emp'   
+) 
+STORED AS TEXTFILE;
+
+
+
+http://json-schema.org/example1.html
+
+
+
+
+
+
+
+
+
+https://www.youtube.com/watch?v=gD3bRLrJuGI //How to convert one file format into another file format
+
+
+How to load XML File
+======================
+hivexmlserde-1.0.5.3.jar
+
+
+//Following table  wrong
+
+CREATE EXTERNAL TABLE BOOKDATA(
+TITLE VARCHAR(40),
+PRICE  INT
+)ROW FORMAT SERDE 'com.ibm.spss.hive.serde2.xml.XmlSerDe'
+WITH SERDEPROPERTIES (
+"column.xpath.TITLE"="/CATALOG/BOOK/TITLE/",
+"column.xpath.PRICE"="/CATALOG/BOOK/PRICE/")
+STORED AS
+INPUTFORMAT 'com.ibm.spss.hive.serde2.xml.XmlInputFormat'
+OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat'
+LOCATION '/sourcedata'
+TBLPROPERTIES (
+"xmlinput.start"="<CATALOG>",
+"xmlinput.end"= "</CATALOG>"
+);
+
+//This is correct
+
+CREATE EXTERNAL TABLE BOOKDATA (TITLE STRING, PRICE FLOAT)
+ROW FORMAT SERDE 'com.ibm.spss.hive.serde2.xml.XmlSerDe'
+WITH SERDEPROPERTIES (
+"column.xpath.TITLE"="/BOOK/TITLE/text()",
+"column.xpath.PRICE"="/BOOK/PRICE/text()")
+STORED AS INPUTFORMAT 'com.ibm.spss.hive.serde2.xml.XmlInputFormat'
+OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat'
+LOCATION '/bookdata_xmltablepath'
+TBLPROPERTIES ("xmlinput.start"="<BOOK>","xmlinput.end"= "</BOOK>");
+
+
+https://cwiki.apache.org/confluence/display/Hive/LanguageManual+DDL#LanguageManualDDL-RowFormats&SerDe  // Knowledge
+
+https://cwiki.apache.org/confluence/display/Hive/LanguageManual+DDL#LanguageManualDDL-DropPartitions  // DDL Statements in Hive
+
+
+Regex SerDe
+==============
+
+https://cwiki.apache.org/confluence/display/Hive/LanguageManual+DDL#LanguageManualDDL-DropPartitions  // DDL Statements in Hive and Regex
+
+ROW FORMAT SERDE
+'org.apache.hadoop.hive.serde2.RegexSerDe'
+WITH SERDEPROPERTIES
+(
+"input.regex" = "<regex>"
+)
+STORED AS TEXTFILE;
+------------------------
+
+CREATE TABLE apachelog (
+  host STRING,
+  identity STRING,
+  user STRING,
+  time STRING,
+  request STRING,
+  status STRING,
+  size STRING,
+  referer STRING,
+  agent STRING)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.RegexSerDe'
+WITH SERDEPROPERTIES (
+  "input.regex" = "([^]*) ([^]*) ([^]*) (-|\\[^\\]*\\]) ([^ \"]*|\"[^\"]*\") (-|[0-9]*) (-|[0-9]*)(?: ([^ \"]*|\".*\") ([^ \"]*|\".*\"))?"
+)
+STORED AS TEXTFILE;
+
+
+TBLPROPERTIES In Hive
+======================
+
+1. TBLPROPERTIES ("comment"="table_comment") 
+
+2. TBLPROPERTIES ("hbase.table.name"="table_name")
+
+3.TBLPROPERTIES ("immutable"="true") or ("immutable"="false") //bydefault is false
+
+If "immutable"="true" then you can not append data from another table into existing table. means INSERT INTO TABLE student1 select * from student2; won't work.gives error Inserting into a non-empty immutable table is not allowed student1 
+Concept:-If student1(existing table) is immutable and non-empty then you can't insert
+ If student1 immutable and empty then you can insert only once,no problem
+
+The behavior of INSERT OVERWRITE is not affected by the "immutable" table property. means on immutable table, you can overwrite
+
+An immutable table is protected against accidental updates due to a script loading data into it being run multiple times by mistake. The first insert into an immutable table succeeds and successive inserts fail,
+
+4.TBLPROPERTIES ("orc.compress"="ZLIB") or ("orc.compress"="SNAPPY") or ("orc.compress"="NONE")
+
+5.TBLPROPERTIES ("transactional"="true") or ("transactional"="false")  // if true, can't be converted back to NON-ACID table
+
+6.TBLPROPERTIES ("EXTERNAL"="true") and ("EXTERNAL"="false") // To Convert managed table to external table and external table to managed table,respectively
+7.TBLPROPERTIES ("skip.header.line.count"="1") and ("skip.footer.line.count"="1") //default value = 0
+
+
+you can alter TBLPROPERTIES by using SET TBLPROPERTIES.
+e.g.
+
+alter table student1 SET TBLPROPERTIES("comment"="table_comment");
+
+Configuration Properties in Hive
+================================
+1.hive.mapred.mode
+
+    Default Value: 
+        Hive 0.x: nonstrict
+        Hive 1.x: nonstrict
+        Hive 2.x: strict (HIVE-12413)
+    Added In: Hive 0.3.0
+
+The mode in which the Hive operations are being performed. In strict mode, some risky queries are not allowed to run. For example, full table scans are prevented (see HIVE-10454) and ORDER BY requires a LIMIT clause.
+
+
+2.hive.enforce.sorting
+
+    Default Value: 
+        Hive 0.x: false
+        Hive 1.x: false
+        Hive 2.x: removed, which effectively makes it always true
+    
+Whether sorting is enforced. If true, while inserting into the table, sorting is enforced.
+
+
+3.hive.optimize.bucketingsorting
+
+    Default Value: true
+    Added In: Hive 0.11.0 
+
+If hive.enforce.bucketing or hive.enforce.sorting is true, don't create a reducer for enforcing bucketing/sorting for queries of the form:
+
+insert overwrite table T2 select * from T1;
+
+where T1 and T2 are bucketed/sorted by the same keys into the same number of buckets. (In Hive 2.0.0 and later, this parameter does not depend on hive.enforce.bucketing or hive.enforce.sorting.)
+
+4.hive.optimize.sort.dynamic.partition
+
+    Default Value: true in Hive 0.13.0 and 0.13.1; false in Hive 0.14.0 and later (HIVE-8151)
+    Added In: Hive 0.13.0 with HIVE-6455
+
+When enabled, dynamic partitioning column will be globally sorted
+
+
+5.hive.exec.dynamic.partition.mode
+
+    Default Value: strict
+    Added In: Hive 0.6.0
+
+In strict mode, the user must specify at least one static partition in case the user accidentally overwrites all partitions. In nonstrict mode all partitions are allowed to be dynamic.
+
+
+6.hive.exec.max.dynamic.partitions.pernode
+
+    Default Value: 100
+    Added In: Hive 0.6.0
+
+Maximum number of dynamic partitions allowed to be created in each mapper/reducer node.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
